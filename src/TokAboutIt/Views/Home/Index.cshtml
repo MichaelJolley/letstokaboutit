@@ -1,0 +1,128 @@
+﻿
+<div class="row joinRow">
+    <div class="col-md-12">
+        <h3>Join a room</h3>
+    </div>
+</div>
+
+<form id="joinSession">
+    <div class="row joinRow">
+        <div class="col-md-12">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="roomName" id="roomName" required placeholder="Room name" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="nickName" id="nickName" required placeholder="Your name" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <input type="submit" class="btn btn-primary" value="Join Room" />
+                </div>
+                <div class="col-md-3">
+                    <input name="showVideo" id="showVideo" type="checkbox" checked data-toggle="toggle" data-onstyle="primary">
+                    <label class="form-check-label" for="showVideo">
+                        Show Video?
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row">&nbsp;</div>
+
+<div id="videos">
+    <div id="subscriber"></div>
+</div>
+
+<div id="publisher"></div>
+
+
+@section Scripts {
+
+    <script type="text/javascript">
+        const apiKey = '@Environment.GetEnvironmentVariable("OPENTOK_API_KEY")';
+        let session;
+        let publisher;
+        let showVideo = true;
+       
+        function handleError(error) {
+            if (error) {
+                alert(error.message);
+            }
+        }
+
+        function joinSession() {
+
+            if (session) {
+                session.disconnect();
+            }
+
+            $.ajax({
+                url: '/api/tok/join',
+                method: 'post',
+                dataType: 'json',
+                data: $('#joinSession').serialize(),
+                success: (data) => {
+                    const token = data.token;
+                    const sessionId = data.sessionId;
+
+                    session = OT.initSession(apiKey, sessionId);
+
+                    // Subscribe to a newly created stream
+                    session.on('streamCreated', function (event) {
+                        session.subscribe(event.stream, 'subscriber', {
+                            insertMode: 'append',
+                        width: '360px',
+                        height: '240px'
+                        }, handleError);
+                    });
+
+                    // Create a publisher
+                    publisher = OT.initPublisher('publisher', {
+                        insertMode: 'append',
+                        width: '360px',
+                        height: '240px',
+                        name: $('#nickName').val(),
+                        style: {
+                            nameDisplayMode: 'on'
+                        }
+                    }, handleError);
+
+                    // Connect to the session
+                    session.connect(token, function (error) {
+                        // If the connection is successful, initialize a publisher and publish to the session
+                        if (error) {
+                            handleError(error);
+                        } else {
+                            session.publish(publisher, handleError);
+                        }
+                    });
+                },
+                error: (err) => {
+                    alert(err);
+                }
+            });
+        }
+
+        $(document).ready(() => {
+            $('#joinSession').submit((e) => {
+                e.preventDefault();
+                joinSession();
+            });
+
+            $('#showVideo').change((e) => {
+                showVideo = $('#showVideo').is(':checked');
+                if (session && publisher) {
+                    publisher.publishVideo(showVideo);
+                }
+            });
+        });
+
+    </script>
+
+}
